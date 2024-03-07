@@ -26,6 +26,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -48,6 +49,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.example.myapplication.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -63,10 +66,10 @@ class MainActivity : ComponentActivity() {
 //                    Greeting("Android")
 //                    LoginScreen()
 //                    RegisterScreen()
-//                    val navController = rememberNavController()
-//                    MainNavHost(navController = navController)
-                    MainScreen()
-                    DetailScreen()
+                    val navController = rememberNavController()
+                    MainNavHost(navController = navController)
+//                    MainScreen()
+//                    DetailScreen()
                 }
             }
         }
@@ -75,29 +78,42 @@ class MainActivity : ComponentActivity() {
 
 
 object MainDestinations {
-    const val LOGIN_ROUTE = "login"
-    const val REGISTER_ROUTE = "register"
+    const val HOME_ROUTE = "home"
+    // Updated route to include both userId and imageRes as arguments
+    const val DETAILS_ROUTE = "details/{userId}/{imageResId}"
+    // Helper function to create a route with arguments
+    fun detailsRoute(userId: Int, imageResId: Int) = "details/$userId/$imageResId"
 }
 
-//@Composable
-//fun MainNavHost(navController: NavHostController) {
-//    NavHost(navController = navController, startDestination = MainDestinations.LOGIN_ROUTE) {
-//        composable(MainDestinations.LOGIN_ROUTE) {
-////            LoginScreen(navController = navController)
-//        }
-//        composable(MainDestinations.REGISTER_ROUTE) {
-////            RegisterScreen(navController = navController)
-//        }
-//    }
-//}
 
 @Composable
-fun MainScreen() {
+fun MainNavHost(navController: NavHostController) {
+    NavHost(navController = navController, startDestination = MainDestinations.HOME_ROUTE) {
+        composable(MainDestinations.HOME_ROUTE) {
+            MainScreen(navController = navController)
+        }
+        composable(
+            route = MainDestinations.DETAILS_ROUTE,
+            arguments = listOf(
+                navArgument("userId") { type = NavType.IntType },
+                navArgument("imageResId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getInt("userId") ?: return@composable
+            val imageResId = backStackEntry.arguments?.getInt("imageResId") ?: return@composable
+            DetailScreen(navController = navController, userId = userId, imageResId = imageResId )
+        }
+    }
+}
+
+
+
+@Composable
+fun MainScreen(navController: NavHostController) {
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Text(
@@ -113,26 +129,26 @@ fun MainScreen() {
             text = "Click on an eligible single user to learn more and see if you are compatible for a date!",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(16.dp)
         )
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             contentPadding = PaddingValues(8.dp),
         ){
             // Here we use 'item' for individual composables
-            item { UserProfile(imageRes = R.drawable.chandler, name = "Chandler") }
-            item { UserProfile(imageRes = R.drawable.joey, name = "Joey") }
-            item { UserProfile(imageRes = R.drawable.monica, name = "Monica") }
-            item { UserProfile(imageRes = R.drawable.phoebe, name = "Phoebe") }
-            item { UserProfile(imageRes = R.drawable.ross, name = "Ross") }
-            item { UserProfile(imageRes = R.drawable.rachel, name = "Rachel") }
+            item { UserProfile(navController, imageRes = R.drawable.chandler, name = "Chandler", 0) }
+            item { UserProfile(navController, imageRes = R.drawable.joey, name = "Joey", 1) }
+            item { UserProfile(navController, imageRes = R.drawable.monica, name = "Monica", 2) }
+            item { UserProfile(navController, imageRes = R.drawable.phoebe, name = "Phoebe", 3) }
+            item { UserProfile(navController, imageRes = R.drawable.ross, name = "Ross", 4) }
+            item { UserProfile(navController, imageRes = R.drawable.rachel, name = "Rachel", 5) }
 
         }
     }
 }
 
 @Composable
-fun UserProfile(@DrawableRes imageRes: Int, name: String) {
+fun UserProfile(navController: NavHostController,@DrawableRes imageRes: Int, name: String, userId: Int) {
     Column(
         modifier = Modifier
             .padding(8.dp)
@@ -146,6 +162,9 @@ fun UserProfile(@DrawableRes imageRes: Int, name: String) {
                 .size(100.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .border(2.dp, MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(16.dp))
+                .clickable {
+                    navController.navigate(MainDestinations.detailsRoute(userId, imageRes))
+                }
         )
         Text(
             text = name,
@@ -158,13 +177,18 @@ fun UserProfile(@DrawableRes imageRes: Int, name: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen() {
+fun DetailScreen(navController: NavHostController, userId: Int,imageResId: Int) {
+    val friendDetailsArray = LocalContext.current.resources.getStringArray(R.array.friend_details)
+    val profileDetails = friendDetailsArray[userId]
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("DetailsActivity") },
                 navigationIcon = {
-                    IconButton(onClick = {  }) {
+                    IconButton(onClick = {
+                        navController.popBackStack()
+                    }) {
                         Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -185,8 +209,8 @@ fun DetailScreen() {
                     RatingBar()
                 }// Custom composable or third-party composable for rating.
                 Image(
-                    painter = painterResource(id = R.drawable.chandler),
-                    contentDescription = "Profile Image of Chandler",
+                    painter = painterResource(imageResId),
+                    contentDescription = "Profile Image",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -196,7 +220,7 @@ fun DetailScreen() {
 
                 )
                 Text(
-                    text = "Chandler Muriel Bing was born on April 8, 1968, to an erotic novelist mother and a transgender woman who later became the star of a Las Vegas drag show. He is of Scottish ancestry. He is an only child and is apparently from an affluent family, as he mentions his family hired servants such as a pool boy and a house boy (both of whom he suspects slept with his father). Chandler\\'s parents announced their divorce to him over Thanksgiving dinner when he was nine years old, an event which causes him to refuse to celebrate the holiday in his adulthood. Chandler had started smoking at the age of 9 because of their divorce. He went to an all-boys high school. Chandler was Ross Geller\\'s roommate in college. Chandler met his friend Rachel Green while celebrating Thanksgiving with the Geller family during his first year at college. On a tip from Monica, Chandler later moved to Apartment 19 in Greenwich Village, Manhattan, across the hall from Monica and her roommate Phoebe Buffay. He moves in with actor Joey Tribbiani, who becomes his best friend.",
+                    text = profileDetails,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(16.dp)
                 )
@@ -204,6 +228,8 @@ fun DetailScreen() {
         }
     }
 }
+
+
 
 // Dummy composable for a rating bar
 @Composable
@@ -226,28 +252,25 @@ fun RatingBar() {
     }
 }
 
-
-
-
-
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
+
     Text(
-        text = "Hello $name!",
+        text = "Hello $name !",
         modifier = modifier
     )
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun GreetingPreview() {
     MyApplicationTheme {
 //        Greeting("Android")
 ////        LoginScreen()
 //        RegisterScreen()
-//        val navController = rememberNavController()
-//        MainNavHost(navController = navController)
-//        MainScreen()
-        DetailScreen()
+        val navController = rememberNavController()
+        MainNavHost(navController = navController)
+////        MainScreen()
+//        DetailScreen()
     }
 }
